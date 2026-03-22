@@ -1,24 +1,5 @@
-# MLflow + FastAPI service
+MLflow и FastAPI: при старте подтягивается пайплайн из указанного run, ручка predict отдаёт класс и вероятность, updateModel меняет модель по новому run_id.
 
-Сервис на FastAPI, который:
-- при старте приложения загружает ML‑модель из MLflow
-- имеет хэндлер `POST /predict` &mdash; принимает на вход признаки
-- имеет хэндлер `POST /updateModel`, который принимает `run_id` и подменяет текущую модель на модель из этого run
+Нужны переменные MLFLOW_TRACKING_URI и DEFAULT_RUN_ID. Запуск через docker compose из этого каталога, снаружи порт смотри в compose-файле.
 
-## Переменные окружения
-
-- **`MLFLOW_TRACKING_URI`**: URI вашего MLflow Tracking Server (например, `http://158.160.2.37:5000/`)
-- **`DEFAULT_RUN_ID`**: то модель загрузится из запуска с этим ID
-
-## Запуск
-
-Через docker compose:
-
-```bash
-export MLFLOW_TRACKING_URI=http://158.160.2.37:5000/
-export DEFAULT_RUN_ID=<your_run_id>
-docker compose up --build
-```
-
-Сервис будет доступен на `http://<ip>:1488`.
-
+Тесты: устанавливаем зависимости из requirements.txt и выполняем pytest в корне проекта.
