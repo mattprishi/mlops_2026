@@ -21,9 +21,26 @@ FEATURE_COLUMNS = [
 ]
 
 
-def to_dataframe(req: PredictRequest, needed_columns: list[str] = None) -> pd.DataFrame:
-    columns = [
-        column for column in needed_columns if column in FEATURE_COLUMNS
-    ] if needed_columns is not None else FEATURE_COLUMNS
-    row = [getattr(req, column.replace('.', '_')) for column in columns]
+def _attr_for_column(column: str) -> str:
+    return column.replace('.', '_')
+
+
+def to_dataframe(req: PredictRequest, needed_columns: list[str]) -> pd.DataFrame:
+    unknown = [c for c in needed_columns if c not in FEATURE_COLUMNS]
+    if unknown:
+        raise ValueError(f'Unknown feature names for this service: {sorted(unknown)}')
+
+    columns = [c for c in needed_columns if c in FEATURE_COLUMNS]
+    missing: list[str] = []
+    row: list = []
+    for column in columns:
+        val = getattr(req, _attr_for_column(column))
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            missing.append(column)
+        row.append(val)
+    if missing:
+        raise ValueError(
+            f'Missing values for features required by the current model: {sorted(missing)}'
+        )
+
     return pd.DataFrame([row], columns=columns)

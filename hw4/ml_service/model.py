@@ -31,4 +31,8 @@ class Model:
 
     @property
     def features(self) -> list[str]:
-        return self.data.model.feature_names_in_
+        with self.lock:
+            m = self.data.model
+        if m is None:
+            return []
+        return list(m.feature_names_in_)
