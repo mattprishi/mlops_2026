@@ -98,9 +98,10 @@ model_metadata = Info('ml_model_metadata', 'Active model run, type, and feature 
 
 
 def model_type_name(model: object) -> str:
-    if hasattr(model, 'steps') and getattr(model, 'steps', None):
-        return type(model[-1]).__name__
-    return type(model).__name__
+    inner = getattr(model, '_sklearn', model)
+    if hasattr(inner, 'steps') and getattr(inner, 'steps', None):
+        return type(inner[-1]).__name__
+    return type(inner).__name__
 
 
 def set_model_info(run_id: str, model: object, features: list[str]) -> None:

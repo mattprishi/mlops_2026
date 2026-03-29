@@ -95,7 +95,10 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
         t1 = time.perf_counter()
-        probability = float(state.model.predict_proba(df)[0][1])
+        try:
+            probability = float(state.model.predict_proba(df)[0][1])
+        except RuntimeError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
         prom.inference_duration_seconds.observe(time.perf_counter() - t1)
         if not np.isfinite(probability):
             raise HTTPException(
