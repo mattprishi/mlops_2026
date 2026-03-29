@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from fastapi.testclient import TestClient
 from mlflow.exceptions import MlflowException
 from mlflow.protos.databricks_pb2 import RESOURCE_DOES_NOT_EXIST
 

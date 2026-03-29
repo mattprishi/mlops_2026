@@ -22,3 +22,40 @@
 ## 2. Тесты
 
 Добавлены pytest-тесты в каталоге tests. Предобработка: to_dataframe оставляет только нужные модели колонки и порядок, ошибки при пропусках и неизвестных именах фичей, валидация отрицательного возраста на уровне схемы. Инференс: на мок-модели проверяется диапазон вероятности 0–1 и целочисленный класс. Хэндлеры: health, predict с валидным телом и с ошибками (422 на отрицательный признак, 400 при нехватке фичей для текущей модели). updateModel с патчем load_model: успешная смена run и откат при ошибке MLflow с сохранением старой модели. Отдельный сценарий поднимает приложение с моками и прогоняет цепочку predict — updateModel — predict.
+
+## 3. Метрики Prometheus
+
+Эндпоинт `GET /metrics` отдаёт текст в формате Prometheus; приложение слушает порт **8890** (диапазон 8890–8899 для скрапинга на стороне курса).
+
+**Технические:** `http_requests_total{method,path,status_code}` — счётчик запросов (по коду ответа видна доля 4xx/5xx и т.д.); `http_request_duration_seconds` — Summary латентности HTTP с квантилями 0.75, 0.9, 0.95, 0.99, 0.999; стандартные метрики процесса через `ProcessCollector` — `process_cpu_seconds_total`, `process_resident_memory_bytes` и др. (нагрузка CPU/RAM).
+
+**Данные:** `ml_preprocess_duration_seconds` — время сборки датафрейма до инференса (те же квантили); `ml_feature_numeric_value{feature}` — гистограмма значений числовых признаков на запросе.
+
+**Модель:** `ml_inference_duration_seconds` — время `predict_proba` (квантили как выше); `ml_prediction_probability` — гистограмма вероятности положительного класса; `ml_predictions_total{prediction_class}` — счётчик предсказаний по классу.
+
+**Модель и обновления:** `ml_model_updates_total{result}` — попытки смены модели (`success`, `not_found`, `mlflow_error`, `io_error`); `ml_model_metadata` (Info) — текущий `run_id`, строка `model_type`, строка `features` (список фичей активной модели). В экспорте Prometheus метрика Info доступна как `ml_model_metadata_info` с теми же полями в лейблах.
+
+## 4. Prometheus (проверка)
+
+Сервис отдаёт метрики на `GET /metrics`, слушатель — порт **8890** (см. `docker-compose.yaml` / `uvicorn`). Центральный Prometheus курса должен скрапить ваш инстанс по `host:8890` из разрешённого диапазона. После деплоя убедитесь, что в UI Prometheus (или через `query API`) видны серии `http_requests_total`, `ml_inference_duration_seconds`, `ml_model_metadata_info` и др.
+
+## 5. Grafana: дашборд
+
+1. Войти в Grafana курса (логин и пароль выдаются на Степике).
+2. **Connections → Data sources → Add data source → Prometheus.** Указать URL Prometheus, который выдал курс (или общий инстанс, где уже подключены таргеты студентов). Сохранить и проверить **Save & test**.
+3. **Dashboards → Import → Upload dashboard JSON** — загрузить файл `grafana/ml-service-dashboard.json`. Выбрать созданный Prometheus как источник данных для переменной импорта.
+4. На дашборде **ML Service — полный мониторинг** четыре логических блока (строки):
+   - **Технические метрики:** RPS по HTTP-коду; квантили задержки HTTP; RSS и CPU процесса.
+   - **Метрики данных:** квантили времени предобработки; интенсивность наблюдений по числовым фичам.
+   - **Метрики модели:** квантили инференса; бакеты гистограммы вероятности; скорость предсказаний по классу.
+   - **Модель в проде и обновления:** таблица с `run_id`, типом модели и списком фичей; график обновлений модели по `result`.
+
+У каждой панели в интерфейсе Grafana заданы **описание (description)** и подписи осей / единицы, где это уместно. При пустых графиках сгенерируйте нагрузку на сервис (`/predict`, при необходимости `/updateModel`), чтобы счётчики и гистограммы наполнились.
+
+## 6. Алертинг (Grafana)
+
+Делается в UI Grafana курса (не в репозитории): **Alerting → Contact points** — добавить Telegram (токен бота, chat id); затем **Alert rules** — не меньше пяти правил, например по плану: доля 5xx среди запросов; p99 времени HTTP; p95 времени инференса; RSS выше порога; средняя `ml_prediction_probability` ниже порога. Проверяющему нужен доступ к каналу уведомлений (приглашение в чат по заданию).
+
+## 7. Evidently (дрифт)
+
+В `ml_service/drift.py`: буфер валидных ответов `/predict` (deque), раз в `EVIDENTLY_INTERVAL_SEC` (по умолчанию 600 с) при накоплении не меньше `EVIDENTLY_MIN_SAMPLES` (50) строится `Report` с `DataDriftPreset` по reference (пример входа из MLflow `input_example.json` у артефакта модели, расширенный до нужного размера) и current (буфер), результат отправляется в `RemoteWorkspace` (`EVIDENTLY_URL`, проект `EVIDENTLY_PROJECT_ID`). Отключить дрифт: `EVIDENTLY_ENABLED=false`. Если у run нет `input_example.json`, в лог пишется предупреждение, reference не строится, отправки нет.
