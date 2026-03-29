@@ -1,13 +1,11 @@
 import threading
 from typing import NamedTuple
 
-from sklearn.pipeline import Pipeline
-
-from ml_service.mlflow_utils import load_model
+from ml_service.mlflow_utils import MlflowModelWrapper, load_model
 
 
 class ModelData(NamedTuple):
-    model: Pipeline | None
+    model: MlflowModelWrapper | None
     run_id: str | None
 
 

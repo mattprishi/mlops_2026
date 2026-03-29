@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from evidently import Report
-from evidently.presets import DataDriftPreset
+from evidently.metric_preset import DataDriftPreset
+from evidently.report import Report
 from evidently.ui.workspace import RemoteWorkspace
 
 from ml_service import config
@@ -95,9 +95,9 @@ async def evidently_cron() -> None:
         current = current.reindex(columns=ref.columns)
         try:
             report = Report(metrics=[DataDriftPreset()])
-            snapshot = report.run(reference_data=ref, current_data=current)
+            report.run(reference_data=ref, current_data=current)
             ws = RemoteWorkspace(config.evidently_url())
-            ws.add_run(config.evidently_project_id(), snapshot)
+            ws.add_report(config.evidently_project_id(), report)
             logger.info('Evidently: отчёт отправлен в проект %s', config.evidently_project_id())
         except Exception:
             logger.exception('Evidently: не удалось построить или отправить отчёт')

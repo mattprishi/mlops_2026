@@ -1,19 +1,27 @@
 from typing import TYPE_CHECKING
 
 import pandas as pd
-from prometheus_client import Counter, Histogram, Info, ProcessCollector, Summary
+from prometheus_client import Counter, Histogram, Info
 
 if TYPE_CHECKING:
     from ml_service.model import Model
 
-ProcessCollector()
-
-TIME_QUANTILES = (
-    (0.75, 0.05),
-    (0.9, 0.05),
-    (0.95, 0.05),
-    (0.99, 0.05),
-    (0.999, 0.05),
+# Секунды; перцентили в Grafana: histogram_quantile(phi, sum(rate(..._bucket[5m])) by (le))
+LATENCY_BUCKETS = (
+    0.0005,
+    0.001,
+    0.002,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
 )
 
 http_requests_total = Counter(
@@ -22,23 +30,23 @@ http_requests_total = Counter(
     ['method', 'path', 'status_code'],
 )
 
-http_request_duration_seconds = Summary(
+http_request_duration_seconds = Histogram(
     'http_request_duration_seconds',
     'HTTP request latency in seconds',
     ['method', 'path'],
-    quantiles=TIME_QUANTILES,
+    buckets=LATENCY_BUCKETS,
 )
 
-preprocess_duration_seconds = Summary(
+preprocess_duration_seconds = Histogram(
     'ml_preprocess_duration_seconds',
     'Time to build a dataframe for prediction',
-    quantiles=TIME_QUANTILES,
+    buckets=LATENCY_BUCKETS,
 )
 
-inference_duration_seconds = Summary(
+inference_duration_seconds = Histogram(
     'ml_inference_duration_seconds',
     'Model predict_proba latency in seconds',
-    quantiles=TIME_QUANTILES,
+    buckets=LATENCY_BUCKETS,
 )
 
 feature_numeric_value = Histogram(
@@ -122,5 +130,3 @@ def refresh_model_info(model_holder: 'Model') -> None:
         return
     feats = list(state.model.feature_names_in_)
     set_model_info(state.run_id, state.model, feats)
-
-
